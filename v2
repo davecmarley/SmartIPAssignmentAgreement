@@ -1,0 +1,165 @@
+//SPDX-License-Identifier: MIT
+
+pragma solidity 0.8.15;
+
+contract SmartIPAssignment {
+    
+    constructor() {
+        deployer = msg.sender;
+    }
+
+    address deployer;
+
+    //Creates a struct for the assignee of the IP. Here it's called a company to mimic the tradfi system.
+    struct Company{
+        string companyName;
+        address companyAddress;
+    }
+
+    //Contributor would be an employee or independent contractor in the tradfi system.
+    struct Contributor {
+        string contributorName;
+        address contributorAddress;
+    }
+
+    struct IPAssignmentAgreement{
+        string agreementName;
+        Company company;
+        Contributor contributor;
+        uint executionTime;
+        bool exclusions;
+        bool assistCompanyWithEnforcement;
+        bool proposed;
+        bool accepted;
+        bool terminated;
+        string ipfsHash;
+        string frontEndIdentifier;
+    }
+
+    mapping (address => IPAssignmentAgreement) companyAddressToAgreementMapping;
+
+    mapping (address => mapping(address => IPAssignmentAgreement)) companyContributorToAgreementMapping;
+
+
+    IPAssignmentAgreement[] public listIPAssignmentAgreements;
+
+
+    function createIPAssignmentAgreement (
+        string memory _agreementName,
+        string memory _companyName, 
+        string memory _contributorName,
+        address _contributorAddress,
+        bool _exclusions,
+        bool _assistCompanyWithEnforcement,
+        string memory _frontEndIdentifier
+        ) public {
+
+            //Creates a new company.  Assumes that the company is creating the contract.
+            Company memory newCompany;
+            newCompany.companyName = _companyName;
+            newCompany.companyAddress = msg.sender;
+
+            Contributor memory newContributor;
+            newContributor.contributorName = _contributorName;
+            newContributor.contributorAddress = _contributorAddress;
+
+           
+            IPAssignmentAgreement memory newIPAssignmentAgreement;
+            newIPAssignmentAgreement.agreementName = _agreementName;
+            newIPAssignmentAgreement.company = newCompany;
+            newIPAssignmentAgreement.contributor = newContributor;
+            newIPAssignmentAgreement.exclusions = _exclusions;
+            newIPAssignmentAgreement.assistCompanyWithEnforcement = _assistCompanyWithEnforcement;
+            newIPAssignmentAgreement.proposed = true;
+            newIPAssignmentAgreement.frontEndIdentifier = _frontEndIdentifier;
+
+            companyAddressToAgreementMapping[newIPAssignmentAgreement.company.companyAddress] = newIPAssignmentAgreement;
+            companyContributorToAgreementMapping[msg.sender][_contributorAddress] = newIPAssignmentAgreement;
+
+            listIPAssignmentAgreements.push(newIPAssignmentAgreement);
+        }
+
+    function getIPAssignmentAgreement (
+        address _companyAddress,
+        address _contributorAddress
+    ) public view returns (
+        string memory agreementName,
+        string memory companyName,
+        address companyAddress,
+        string memory contributorName,
+        address contributorAddress,
+        bool exclusions,
+        bool assistCompanyWithEnforcement,
+        bool proposed,
+        bool accepted,
+        bool terminated,
+        string memory ipfsHash
+    ) {
+        
+        IPAssignmentAgreement memory agreement;
+        agreement = companyContributorToAgreementMapping[_companyAddress][_contributorAddress];
+
+        agreementName = agreement.agreementName;
+        companyName = agreement.company.companyName;
+        companyAddress = agreement.company.companyAddress;
+        contributorName = agreement.contributor.contributorName;
+        contributorAddress = agreement.contributor.contributorAddress;
+        exclusions = agreement.exclusions;
+        assistCompanyWithEnforcement = agreement.assistCompanyWithEnforcement;
+        proposed = agreement.proposed;
+        accepted = agreement.accepted;
+        terminated = agreement.terminated;
+        ipfsHash = agreement.ipfsHash;
+
+        return (
+            agreementName,
+            companyName,
+            companyAddress,
+            contributorName,
+            contributorAddress,
+            exclusions,
+            assistCompanyWithEnforcement,
+            proposed,
+            accepted,
+            terminated,
+            ipfsHash
+        ) ;
+}
+
+    function acceptIPAssignmentAgreement (
+        address _companyAddress,
+        address _contributorAddress,
+        string memory _ipfsHash
+    ) public {
+
+        IPAssignmentAgreement storage acceptableIPAssignmentAgreement;
+
+        acceptableIPAssignmentAgreement = companyContributorToAgreementMapping[_companyAddress][_contributorAddress];
+
+        acceptableIPAssignmentAgreement.accepted = true;
+        acceptableIPAssignmentAgreement.executionTime = block.timestamp;
+        acceptableIPAssignmentAgreement.ipfsHash = _ipfsHash;
+
+        require(msg.sender == acceptableIPAssignmentAgreement.contributor.contributorAddress);
+    }
+
+    function terminateIPAssignmentAgreement (
+        address _companyAddress,
+        address _contributorAddress
+    ) public {
+
+        IPAssignmentAgreement storage terminableIPAssignmentAgreement;
+
+        terminableIPAssignmentAgreement = companyContributorToAgreementMapping[_companyAddress][_contributorAddress];
+
+        terminableIPAssignmentAgreement.terminated = true;
+
+        require(msg.sender == terminableIPAssignmentAgreement.company.companyAddress);
+    }
+
+    function destroyContract() public {
+        require(msg.sender == deployer, "error, not deployer");
+        selfdestruct(payable(msg.sender));
+    }
+
+}
